@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod test_statistics {
 use crate::*;
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
@@ -80,3 +82,4 @@ fn test_get_active_pets_count() {
     client.activate_pet(&id2);
     assert_eq!(client.get_active_pets_count(), 1);
 }
+} // end mod test_statistics

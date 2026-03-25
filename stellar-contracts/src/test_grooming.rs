@@ -1,4 +1,5 @@
-
+#[cfg(test)]
+mod test_grooming {
 use crate::{PetChainContract, PetChainContractClient, Gender, Species, PrivacyLevel};
 use soroban_sdk::{testutils::Address as _, Address, Env, String};
 
@@ -239,3 +240,4 @@ fn test_empty_grooming_history() {
     let expenses = client.get_grooming_expenses(&pet_id);
     assert_eq!(expenses, 0);
 }
+} // end mod test_grooming

@@ -1,6 +1,11 @@
 #![no_std]
 #![allow(clippy::too_many_arguments)]
 
+use soroban_sdk::{
+    contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, String, Symbol, Vec,
+};
+use soroban_sdk::xdr::{FromXdr, ToXdr};
+
 #[contracttype]
 pub enum InsuranceKey {
     Policy(u64),
@@ -71,10 +76,7 @@ mod test_pet_age;
 #[cfg(test)]
 mod test_statistics;
 
-use soroban_sdk::xdr::{FromXdr, ToXdr};
-use soroban_sdk::{
-    contract, contractimpl, contracttype, Address, Bytes, BytesN, Env, String, Symbol, Vec,
-};
+
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -528,10 +530,8 @@ pub enum DataKey {
     AccessGrantIndex((u64, u64)), // (pet_id, index) -> grantee Address
     TemporaryCustody(u64),        // pet_id -> temporary custody record
 
-    // Vet stats and tracking
-    VetStats(Address),
-    VetPetTreated((Address, u64)), // (vet, pet_id) -> bool
-    VetPetCount(Address),          // unique pets treated
+    // Vet stats and tracking — use VetKey enum instead
+    // (VetStats, VetPetTreated, VetPetCount removed: duplicated by VetKey)
 
     // Lab Result DataKey
 
@@ -640,6 +640,14 @@ pub enum VetKey {
     VetStats(Address),
     VetPetTreated((Address, u64)),
     VetPetCount(Address),
+}
+
+#[contracttype]
+pub enum GroomingKey {
+    Record(u64),                  // record_id -> GroomingRecord
+    RecordCount,                  // global count
+    PetGroomingCount(u64),        // pet_id -> count
+    PetGroomingIndex((u64, u64)), // (pet_id, index) -> record_id
 }
 
 #[contracttype]
@@ -1670,6 +1678,7 @@ impl PetChainContract {
             .instance()
             .get::<DataKey, Pet>(&DataKey::Pet(id))
         {
+            pet.owner.require_auth();
             if !pet.active {
                 let active_count: u64 = env
                     .storage()
@@ -5759,7 +5768,7 @@ impl PetChainContract {
     ) -> u64 {
         let pet: Pet = env.storage().instance().get(&DataKey::Pet(pet_id)).expect("Pet not found");
         pet.owner.require_auth();
-        let count: u64 = env.storage().instance().get(&Symbol::new(&env, "grooming_count")).unwrap_or(0);
+        let count: u64 = env.storage().instance().get(&GroomingKey::RecordCount).unwrap_or(0);
         let record_id = count + 1;
         let record = GroomingRecord {
             id: record_id,
@@ -5771,21 +5780,21 @@ impl PetChainContract {
             cost,
             notes,
         };
-        env.storage().instance().set(&(Symbol::new(&env, "grooming"), record_id), &record);
-        env.storage().instance().set(&Symbol::new(&env, "grooming_count"), &record_id);
-        let pet_count: u64 = env.storage().instance().get(&(Symbol::new(&env, "pet_grooming"), pet_id)).unwrap_or(0);
+        env.storage().instance().set(&GroomingKey::Record(record_id), &record);
+        env.storage().instance().set(&GroomingKey::RecordCount, &record_id);
+        let pet_count: u64 = env.storage().instance().get(&GroomingKey::PetGroomingCount(pet_id)).unwrap_or(0);
         let new_count = pet_count + 1;
-        env.storage().instance().set(&(Symbol::new(&env, "pet_grooming"), pet_id), &new_count);
-        env.storage().instance().set(&(Symbol::new(&env, "pet_grooming_idx"), pet_id, new_count), &record_id);
+        env.storage().instance().set(&GroomingKey::PetGroomingCount(pet_id), &new_count);
+        env.storage().instance().set(&GroomingKey::PetGroomingIndex((pet_id, new_count)), &record_id);
         record_id
     }
 
     pub fn get_grooming_history(env: Env, pet_id: u64) -> Vec<GroomingRecord> {
-        let count: u64 = env.storage().instance().get(&(Symbol::new(&env, "pet_grooming"), pet_id)).unwrap_or(0);
+        let count: u64 = env.storage().instance().get(&GroomingKey::PetGroomingCount(pet_id)).unwrap_or(0);
         let mut history = Vec::new(&env);
         for i in 1..=count {
-            if let Some(record_id) = env.storage().instance().get::<_, u64>(&(Symbol::new(&env, "pet_grooming_idx"), pet_id, i)) {
-                if let Some(record) = env.storage().instance().get::<_, GroomingRecord>(&(Symbol::new(&env, "grooming"), record_id)) {
+            if let Some(record_id) = env.storage().instance().get::<GroomingKey, u64>(&GroomingKey::PetGroomingIndex((pet_id, i))) {
+                if let Some(record) = env.storage().instance().get::<GroomingKey, GroomingRecord>(&GroomingKey::Record(record_id)) {
                     history.push_back(record);
                 }
             }

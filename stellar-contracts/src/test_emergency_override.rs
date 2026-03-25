@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod test_emergency_override {
 use crate::*;
 use soroban_sdk::{testutils::Address as _, Address, Env, String, Vec};
 
@@ -118,7 +120,6 @@ fn test_emergency_data_filtering() {
 }
 
 #[test]
-#[ignore = "Requires Allergy struct implementation"]
 fn test_emergency_logging() {
     let env = Env::default();
     env.mock_all_auths();
@@ -139,13 +140,10 @@ fn test_emergency_logging() {
         &PrivacyLevel::Public,
     );
 
-    // Initial log state (could check storage directly)
-    // Actually, I'll use the client to call get_emergency_info multiple times
     client.get_emergency_info(&pet_id);
     client.get_emergency_info(&pet_id);
     client.get_emergency_info(&pet_id);
 
-    // Verify logs in storage
     let log_key = DataKey::EmergencyAccessLogs(pet_id);
     let logs: Vec<EmergencyAccessLog> = env.as_contract(&contract_id, || {
         env.storage()
@@ -158,3 +156,4 @@ fn test_emergency_logging() {
     assert_eq!(logs.get(0).unwrap().pet_id, pet_id);
     assert!(logs.get(0).unwrap().timestamp > 0);
 }
+} // end mod test_emergency_override
